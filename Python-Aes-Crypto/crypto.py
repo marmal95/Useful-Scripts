@@ -9,10 +9,17 @@ BUFFER_SIZE = 64 * 1024
 
 def show_help():
     print('Encryption usage:')
-    print('\tpython crypto.py --encrypt [PATH]')
+    print('\tpython crypto.py --encrypt [PATH] [[OPTIONAL] KEY_FILE]')
+    print()
+    print('\tKEY_FILE - if specified AES256 key will be generated and saved to that file')
+    print('\totherwise script will ask about user key to encrypt data.')
+    print()
     print()
     print('Decryption usage:')
-    print('\tpython crypto.py --decrypt [PATH]')
+    print('\tpython crypto.py --decrypt [PATH [[OPTIONAL] KEY_FILE]')
+    print()
+    print('\tKEY_FILE - if specified AES256 key will be loaded from that file')
+    print('\totherwise script will ask about user key to decrypt data.')
     sys.stdout.flush()
 
 
@@ -21,30 +28,49 @@ def show_argv_error():
     sys.stdout.flush()
 
 
-def run_crypto(crypto_action, path):
-    key = read_key()
-    if os.path.isdir(os.path.abspath(path)):
-        if crypto_action == '--encrypt':
-            encrypt_dir(path, key)
-        elif crypto_action == '--decrypt':
-            decrypt_dir(path, key)
-        else:
-            show_help()
+def run_crypto(crypto_action, path, key_file):
+    if crypto_action == '--encrypt':
+        key = os.urandom(256) if key_file else read_key() 
+        save_key(key_file, key)
+        encrypt(path, key)
+    elif crypto_action == '--decrypt':
+        key = load_key(key_file) if key_file else read_key()
+        decrypt(path, key)
     else:
-        if crypto_action == '--encrypt':
-            encrypt_file(path, key)
-        elif crypto_action == '--decrypt':
-            decrypt_file(path, key)
-        else:
-            show_help()
+        show_help()
 
 
 def read_key():
     if sys.stdin.isatty():
-        return getpass.getpass('Key: ')
+        return str.encode(getpass.getpass('Key: '))
     else:
         print('Key: ', end='', flush=True)
-        return sys.stdin.readline().rstrip()
+        return str.encode(sys.stdin.readline().rstrip())
+
+
+def load_key(key_path):
+    with open(key_path, 'rb') as key_file:
+        return key_file.read()
+
+
+def save_key(key_path, key):
+    if key_path:
+        with open(key_path, 'wb') as key_file:
+            key_file.write(key)
+
+
+def encrypt(path, key):
+    if os.path.isdir(key):
+        encrypt_dir(path, key)
+    elif os.path.isfile(path):
+        encrypt_file(path, key)
+
+
+def decrypt(path, key):
+    if os.path.isdir(key):
+        decrypt_dir(path, key)
+    elif os.path.isfile(path):
+        decrypt_file(path, key)
 
 
 def encrypt_dir(path, encrypt_key):
@@ -56,8 +82,10 @@ def encrypt_dir(path, encrypt_key):
 def encrypt_file(path, encrypt_key):
     try:
         print_coloured('[   ENCRYPTING   ]: ' + path, Fore.YELLOW)
-        pyAesCrypt.encryptFile(path, path + '.enc', encrypt_key, BUFFER_SIZE)
+        enc_path = path + '.enc'
+        pyAesCrypt.encryptFile(path, enc_path, str(encrypt_key), BUFFER_SIZE)
         os.remove(path)
+        os.rename(enc_path, path)
         print_coloured('[   ENCRYPTED    ]', Fore.GREEN)
     except Exception as e:
         print_coloured('[   EXCEPTION    ]', Fore.RED)
@@ -73,8 +101,10 @@ def decrypt_dir(path, decrypt_key):
 def decrypt_file(path, decrypt_key):
     try:
         print_coloured('[   DECRYPTING   ]: ' + path, Fore.YELLOW)
-        pyAesCrypt.decryptFile(path, os.path.splitext(path)[0], decrypt_key, BUFFER_SIZE)
+        dec_path = path + '.dec'
+        pyAesCrypt.decryptFile(path, dec_path, str(decrypt_key), BUFFER_SIZE)
         os.remove(path)
+        os.rename(dec_path, path)
         print_coloured('[   DECRYPTED    ]', Fore.GREEN)
     except Exception as e:
         print_coloured('[   EXCEPTION    ]', Fore.RED)
@@ -91,7 +121,8 @@ def main():
     elif len(sys.argv) < 2:
         show_argv_error()
     else:
-        run_crypto(sys.argv[1], sys.argv[2])
+        key_file = sys.argv[3] if len(sys.argv) > 3 else None
+        run_crypto(crypto_action=sys.argv[1], path=sys.argv[2], key_file=key_file)
 
 
 if __name__ == '__main__':
