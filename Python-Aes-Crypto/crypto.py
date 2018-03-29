@@ -60,14 +60,14 @@ def save_key(key_path, key):
 
 
 def encrypt(path, key):
-    if os.path.isdir(key):
+    if os.path.isdir(os.path.abspath(path)):
         encrypt_dir(path, key)
     elif os.path.isfile(path):
         encrypt_file(path, key)
 
 
 def decrypt(path, key):
-    if os.path.isdir(key):
+    if os.path.isdir(os.path.abspath(path)):
         decrypt_dir(path, key)
     elif os.path.isfile(path):
         decrypt_file(path, key)
